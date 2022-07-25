@@ -7,11 +7,16 @@ ANDROID='Gradle/Android'
 NON_ANDROID='Gradle/Non_Android'
 CURL_ERROR_CODE=22
 TIMESTAMP=$(date "+%Y%m%d-%H%M%S")
+LOG_FOLDER='logs'
 
 
 if [[ $# -ne 1 ]]; then
 	echo "Json file must be supplied as an argument."
 	exit 1
+fi
+
+if [[ ! -d ${LOG_FOLDER} ]]; then
+	mkdir -p ${LOG_FOLDER}
 fi
 
 if [[ ! -d ${PROJECTS_FOLDER}/${NON_ANDROID} ]]; then
@@ -62,7 +67,6 @@ for i in "${!raw_html_list[@]}"; do
 		cd - > /dev/null
 		echo "Project Type: $project_type, URL: $orig_html" >> logs/downloaded_${TIMESTAMP}.txt
 	else	
-		echo $raw_html $project_type
 		echo "URL: $orig_html" >> logs/not_downloaded_${TIMESTAMP}.txt
 	fi
 
