@@ -65,9 +65,9 @@ for i in "${!raw_html_list[@]}"; do
 		cd "${PROJECTS_FOLDER}/${project_type}"
 		git clone ${orig_html}.git && echo "${orig_html}.git success"
 		cd - > /dev/null
-		echo "Project Type: $project_type, URL: $orig_html" >> logs/downloaded_${TIMESTAMP}.txt
+		echo "Project Type: $project_type, URL: $orig_html" >> ${LOG_FOLDER}/downloaded_${TIMESTAMP}.txt
 	else	
-		echo "URL: $orig_html" >> logs/not_downloaded_${TIMESTAMP}.txt
+		echo "URL: $orig_html" >> ${LOG_FOLDER}/not_downloaded_${TIMESTAMP}.txt
 	fi
 
 	
