@@ -62,12 +62,15 @@ for i in "${!raw_html_list[@]}"; do
 	
 	orig_html=$(echo "$raw_html" | sed 'sXraw.githubusercontent.comXgithub.comX')
 	if  [[ ! -z "$project_type" ]]; then
-		cd "${PROJECTS_FOLDER}/${project_type}"
-		git clone ${orig_html}.git && echo "${orig_html}.git success"
-		cd - > /dev/null
-		echo "Project Type: $project_type, URL: $orig_html" >> ${LOG_FOLDER}/downloaded_${TIMESTAMP}.txt
+		project_name=$(echo $orig_html | cut -d/ -f4-5 | sed 'sX/X__X')    #allows for sharing of repo names among different users
+		if git clone $orig_html "${PROJECTS_FOLDER}/${project_type}/${project_name}"; then
+			echo "Project Type: $project_type, URL: $orig_html" >> ${LOG_FOLDER}/downloaded_${TIMESTAMP}.txt
+		else
+			echo "URL: $orig_html, Reason for Failure: Git clone crashed" >> ${LOG_FOLDER}/not_downloaded_${TIMESTAMP}.txt
+		fi
+		
 	else	
-		echo "URL: $orig_html" >> ${LOG_FOLDER}/not_downloaded_${TIMESTAMP}.txt
+		echo "URL: $orig_html, Reason for Failure: Not Maven/Gradle" >> ${LOG_FOLDER}/not_downloaded_${TIMESTAMP}.txt
 	fi
 
 	
