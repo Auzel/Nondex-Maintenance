@@ -8,7 +8,7 @@ ENDDATE=$2
 PAGE=$3
 DESTINATION_FOLDER=output
 DESTINATION_FILE=${DESTINATION_FOLDER}/projects_${STARTDATE}_to_${ENDDATE}_${PAGE}.json
-URL="https://api.github.com/search/repositories?q=stars:%3E1+pushed%3A${STARTDATE}..${ENDDATE}+language:java&sort=stars&order=desc&per_page=100&page=${PAGE}"
+URL="https://api.github.com/search/repositories?q=mirror:false+archived:false+stars:>1000+pushed:${STARTDATE}..${ENDDATE}+language:java+NOT+archived+in:name,description,topics,readme&sort=stars&order=desc&per_page=100&page=${PAGE}"
 
 if [[ $# -ne 3 ]]; then
 	echo "Need to supply 3 arguments: startdate, enddate, page#."	
