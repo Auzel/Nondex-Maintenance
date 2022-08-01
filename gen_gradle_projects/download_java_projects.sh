@@ -1,13 +1,18 @@
 #!/bin/bash
 
-JSON_FILE=$1
-PROJECTS_FOLDER=projects
+JSON_FILES=$1
+PROJECTS_FOLDER='projects'
 MAVEN='Maven'
-ANDROID='Gradle/Android'
-NON_ANDROID='Gradle/Non_Android'
-CURL_ERROR_CODE=22
+GRADLE='Gradle'
+BOTH_SYSTEMS="${MAVEN}_And_${GRADLE}"
+BUILD_SYSTEMS=("$MAVEN" "$GRADLE" "$BOTH_SYSTEMS")
+ANDROID='Android'
+NON_ANDROID='Non_Android'
+APPS=("$ANDROID" "$NON_ANDROID")
+SUCCESS_EXIT_CODE=0
 TIMESTAMP=$(date "+%Y%m%d-%H%M%S")
 LOG_FOLDER='logs'
+TEMP_FOLDER='temp'
 
 
 if [[ $# -ne 1 ]]; then
@@ -15,64 +20,65 @@ if [[ $# -ne 1 ]]; then
 	exit 1
 fi
 
-if [[ ! -d ${LOG_FOLDER} ]]; then
-	mkdir -p ${LOG_FOLDER}
-fi
-
-if [[ ! -d ${PROJECTS_FOLDER}/${NON_ANDROID} ]]; then
-	mkdir -p ${PROJECTS_FOLDER}/${NON_ANDROID}
-fi
-
-if [[ ! -d ${PROJECTS_FOLDER}${ANDROID} ]]; then
-	mkdir -p ${PROJECTS_FOLDER}/${ANDROID}
-fi
-
-if [[ ! -d ${PROJECTS_FOLDER}/${MAVEN} ]]; then
-        mkdir -p ${PROJECTS_FOLDER}/${MAVEN}
-fi
-
-	
-default_branches_str=$(grep default_branch "$JSON_FILE" | cut -f4 -d\")
-default_branches_list=(${default_branches_str})
-
-raw_htmls=$(grep html_url "$JSON_FILE" | grep '.*//.*/.*/' | cut -f4 -d\" | sed 'sXgithub.comXraw.githubusercontent.comX')
-raw_html_list=(${raw_htmls})
-
-
-for i in "${!raw_html_list[@]}"; do 
-	default_branch=${default_branches_list[$i]}
-	raw_html=${raw_html_list[$i]}
-
-	project_type=""
-	pom_url=$(echo "$raw_html" | sed 'sX$X/'"$default_branch"'/pom.xmlX')
-	curl -s -f -o /dev/null $pom_url
-	if [[ $? -ne $CURL_ERROR_CODE ]]; then
-		project_type=$MAVEN
-	else
-		gradle_url=$(echo "$raw_html" | sed 'sX$X/'"$default_branch"'/build.gradleX')
-		gradle_file=$(curl -s -f $gradle_url)
-		if [[ $? -ne $CURL_ERROR_CODE ]]; then
-			if echo $gradle_file | grep -q 'com.android.tools.build'; then
-				project_type=$ANDROID
-			else
-				project_type=$NON_ANDROID
-			fi
-		fi
-	fi
-	
-	orig_html=$(echo "$raw_html" | sed 'sXraw.githubusercontent.comXgithub.comX')
-	if  [[ ! -z "$project_type" ]]; then
-		project_name=$(echo $orig_html | cut -d/ -f4-5 | sed 'sX/X__X')    #allows for sharing of repo names among different users
-		if git clone $orig_html "${PROJECTS_FOLDER}/${project_type}/${project_name}"; then
-			echo "Project Type: $project_type, URL: $orig_html" >> ${LOG_FOLDER}/downloaded_${TIMESTAMP}.txt
-		else
-			echo "URL: $orig_html, Reason for Failure: Git clone crashed" >> ${LOG_FOLDER}/not_downloaded_${TIMESTAMP}.txt
-		fi
-		
-	else	
-		echo "URL: $orig_html, Reason for Failure: Not Maven/Gradle" >> ${LOG_FOLDER}/not_downloaded_${TIMESTAMP}.txt
-	fi
-
-	
+folders=("$LOG_FOLDER" "$TEMP_FOLDER")
+for app in "${APPS[@]}"; do
+	for system in "${BUILD_SYSTEMS[@]}"; do
+		folders+=("$PROJECTS_FOLDER/$app/$system")
+	done
 done
+for folder in "${folders[@]}"; do
+	if [[ ! -d $folder ]]; then
+		mkdir -p $folder;
+	fi
+done
+
+
+default_branches_str=$(grep -r default_branch "$JSON_FILES" | cut -f4 -d\")
+default_branches_list=($default_branches_str)
+
+htmls_str=$(grep -r html_url "$JSON_FILES" | grep '.*//.*/.*/' | cut -f4 -d\")
+htmls_list=($htmls_str)
+
+for i in "${!htmls_list[@]}"; do 
+	default_branch=${default_branches_list[$i]}
+	html=${htmls_list[$i]}
+
+	pom_url=$(echo "$html" | sed 'sX$X/blob/'"$default_branch"'/pom.xmlX')
+	curl -s -f -o /dev/null $pom_url
+	pom_return_code=$?
+
+	gradle_url=$(echo "$html" | sed 'sX$X/blob/'"$default_branch"'/build.gradleX')
+	curl -s -f -o /dev/null $gradle_url
+	gradle_return_code=$?
+
+	build_system=""
+	if [[ $pom_return_code -eq $SUCCESS_EXIT_CODE && $gradle_return_code -eq $SUCCESS_EXIT_CODE ]]; then
+		build_system=$BOTH_SYSTEMS
+	elif [[ $pom_return_code -eq $SUCCESS_EXIT_CODE ]]; then
+		build_system=$MAVEN
+	elif [[ $gradle_return_code -eq $SUCCESS_EXIT_CODE ]]; then
+		build_system=$GRADLE
+	fi
+
+	if  [[ ! -z "$build_system" ]]; then
+		project_name=$(echo $html | cut -d/ -f4-5 | sed 'sX/X__X')    #allows for sharing of repo names among different users
+		temp_file="$TEMP_FOLDER/$project_name"
+		if git clone $html "$temp_file"; then
+			find "$temp_file" -name AndroidManifest.xml | grep -q .  
+			if [[ $? -eq $SUCCESS_EXIT_CODE ]]; then project_type=$ANDROID; else project_type=$NON_ANDROID; fi 
+			permanent_loc="$PROJECTS_FOLDER/$project_type/$build_system/"
+			mv $temp_file  $permanent_loc
+			echo "Build System: $build_system, URL: $html" >> $LOG_FOLDER/downloaded_$TIMESTAMP.txt
+		else
+			echo "Build System: $build_system, URL: $html, Reason for Failure: Git clone crashed" >> $LOG_FOLDER/not_downloaded_$TIMESTAMP.txt
+		fi
+	else	
+		echo "Build System: unknown, URL: $html, Reason for Failure: Not Maven/Gradle" >> $LOG_FOLDER/not_downloaded_$TIMESTAMP.txt
+	fi
+
+
+done
+
+rm -rf $TEMP_FOLDER
+
 
